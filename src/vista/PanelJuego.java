@@ -6,7 +6,11 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.util.ArrayList;
+import javax.imageio.ImageIO;
 import javax.swing.JPanel;
 
 import modelo.Enemigo;
@@ -19,116 +23,206 @@ public class PanelJuego extends javax.swing.JPanel {
     private ArrayList<Enemigo> enemigos = new ArrayList<>();
     private ArrayList<Proyectil> proyectiles = new ArrayList<>();
     private int puntuacion = 0;
-    /**
-     * Creates new form PanelJuego
-     */
+    private int record = 0;
+
+    // Sprites y recursos gráficos
+    private BufferedImage[] baseFrames = new BufferedImage[4];
+    private BufferedImage cannonImage;
+    private BufferedImage[] enemyFrames = new BufferedImage[4];
+    private BufferedImage enemyBulletImage;
+    private BufferedImage backgroundImage; // <--- NUEVO: Imagen para el fondo de prueba
+    
+    private int currentFrame = 0;
+    private int animTimer = 0;
+
+    // Dimensiones de la pantalla y el mundo gigante
+    private final int SCREEN_WIDTH = 800;
+    private final int SCREEN_HEIGHT = 600;
+    private final int MAP_WIDTH = 4000;
+    private final int MAP_HEIGHT = 3000;
+
     public PanelJuego() {
         initComponents();
-        this.setBackground(Color.BLACK);//Esto es para el fonde negro
-        //En la ultima version podriamos hacer que el fondo tenga puntos blancos
-        //como estrellas(nosecomosehace)
+        this.setBackground(Color.BLACK);
+        loadResources();
     }
-    public void actualizarDatos(Jugador j, ArrayList<Enemigo> e, ArrayList<Proyectil> p, int puntuacion) {
+
+    private void loadResources() {
+        try {
+            BufferedImage baseSheet = ImageIO.read(getClass().getResource("/recursos/T3ColorF-Sheet.png"));
+            if (baseSheet != null) {
+                for (int i = 0; i < 4; i++) {
+                    baseFrames[i] = baseSheet.getSubimage(i * 159, 0, 159, 176);
+                }
+            }
+
+            cannonImage = ImageIO.read(getClass().getResource("/recursos/CÑColorF.png"));
+
+            BufferedImage enemySheet = ImageIO.read(getClass().getResource("/recursos/EnemigoT.png"));
+            if (enemySheet != null) {
+                for (int i = 0; i < 4; i++) {
+                    enemyFrames[i] = enemySheet.getSubimage(i * 48, 0, 48, 48);
+                }
+            }
+
+            enemyBulletImage = ImageIO.read(getClass().getResource("/recursos/BalaT.png"));
+
+            // Cargar el fondo de prueba texturizado
+            backgroundImage = ImageIO.read(getClass().getResource("/recursos/FondoPrueba.png"));
+
+        } catch (IOException | NullPointerException e) {
+            System.err.println("Aviso: No se pudieron cargar algunos recursos gráficos desde /recursos/. Asegúrate de incluir 'FondoPrueba.png'.");
+        }
+    }
+
+    public void actualizarDatos(Jugador j, ArrayList<Enemigo> e, ArrayList<Proyectil> p, int puntuacion, int record) {
         this.jugador = j;
         this.enemigos = e;
         this.proyectiles = p;
         this.puntuacion = puntuacion;
+        this.record = record;
+        
+        if (jugador != null && jugador.isMovimiento()) {
+            animTimer++;
+            if (animTimer % 8 == 0) {
+                currentFrame = (currentFrame + 1) % 4;
+            }
+        } else {
+            currentFrame = 0;
+        }
+        
         this.repaint();
     }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
 
-        // Activa bordes suaves (Anti-Aliasing) para mejor acabado visual
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 
-        // 1. DIBUJAR JUGADOR, SU CAÑÓN Y SU ESCUDO
-        if (jugador != null && jugador.getVida() > 0) {
-            int jX = (int) jugador.getX();
-            int jY = (int) jugador.getY();
-            int jRadio = jugador.getRadio();
+        if (jugador == null) return;
 
-            // A) Escudo Activo (Aura azul brillante)
-            if (jugador.isEscudoActivo()) {
-                g2d.setColor(new Color(0, 191, 255, 100)); // Azul translúcido
-                g2d.fillOval(jX - jRadio - 10, jY - jRadio - 10, (jRadio + 10) * 2, (jRadio + 10) * 2);
-                g2d.setColor(Color.CYAN);
-                g2d.drawOval(jX - jRadio - 10, jY - jRadio - 10, (jRadio + 10) * 2, (jRadio + 10) * 2);
+        // --- CÁLCULO DE CÁMARA (Centrar el mundo en el jugador) ---
+        double worldTankX = jugador.getX();
+        double worldTankY = jugador.getY();
+
+        double cameraX = (SCREEN_WIDTH / 2.0) - worldTankX;
+        double cameraY = (SCREEN_HEIGHT / 2.0) - worldTankY;
+
+        double minCameraX = SCREEN_WIDTH - MAP_WIDTH;
+        double minCameraY = SCREEN_HEIGHT - MAP_HEIGHT;
+        if (cameraX > 0) cameraX = 0;
+        if (cameraX < minCameraX) cameraX = minCameraX;
+        if (cameraY > 0) cameraY = 0;
+        if (cameraY < minCameraY) cameraY = minCameraY;
+
+        // === DIBUJAR FONDO TEXTURIZADO EN MOSAICO (TILING) ===
+        if (backgroundImage != null) {
+            int imgWidth = backgroundImage.getWidth();
+            int imgHeight = backgroundImage.getHeight();
+            
+            if (imgWidth > 0 && imgHeight > 0) {
+                // Dibujar la textura repetida a lo largo de todo el mapa de 4000x3000
+                for (int x = 0; x < MAP_WIDTH; x += imgWidth) {
+                    for (int y = 0; y < MAP_HEIGHT; y += imgHeight) {
+                        int screenX = (int) (x + cameraX);
+                        int screenY = (int) (y + cameraY);
+                        
+                        // Optimización: solo dibuja los bloques que se ven en la pantalla actual
+                        if (screenX + imgWidth >= 0 && screenX <= SCREEN_WIDTH &&
+                            screenY + imgHeight >= 0 && screenY <= SCREEN_HEIGHT) {
+                            g2d.drawImage(backgroundImage, screenX, screenY, null);
+                        }
+                    }
+                }
             }
-
-            // B) Cañón Giratorio (Gira en la dirección de anguloApuntado)
-            double angulo = jugador.getAnguloApuntado();
-            int largoCanon = jRadio + 15;
-            int canonX = (int) (jX + Math.cos(angulo) * largoCanon);
-            int canonY = (int) (jY + Math.sin(angulo) * largoCanon);
-
-            g2d.setColor(Color.GRAY);
-            g2d.setStroke(new BasicStroke(7)); // Ancho del cañón
-            g2d.drawLine(jX, jY, canonX, canonY);
-            g2d.setStroke(new BasicStroke(1)); // Resetear grosor
-
-            // C) Cuerpo de la Nave (Círculo Azul)
-            g2d.setColor(new Color(30, 144, 255));
-            g2d.fillOval(jX - jRadio, jY - jRadio, jRadio * 2, jRadio * 2);
-            g2d.setColor(Color.WHITE);
-            g2d.drawOval(jX - jRadio, jY - jRadio, jRadio * 2, jRadio * 2);
-
-            // D) Barra de vida del Jugador (100 HP máx)
-            dibujarBarraVida(g2d, jX, jY - jRadio - 15, jugador.getVida(), 100, 40, 6);
+        } else {
+            // Fondo de respaldo negro sólido si la imagen no se encuentra
+            g2d.setColor(Color.BLACK);
+            g2d.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         }
 
-        // 2. DIBUJAR PROYECTILES (Balas amarillas)
+        // Posición del tanque fija en el centro de la pantalla
+        double screenTankX = worldTankX + cameraX;
+        double screenTankY = worldTankY + cameraY;
+
+        // 1. DIBUJAR ENEMIGOS
+        for (Enemigo en : enemigos) {
+            double screenEnX = en.getX() + cameraX;
+            double screenEnY = en.getY() + cameraY;
+            
+            // Usamos el frame independiente y automático de cada enemigo
+            BufferedImage currentEnFrame = enemyFrames[en.getFrameAnimacion()];
+            if (currentEnFrame != null) {
+                g2d.drawImage(currentEnFrame, (int) screenEnX - 24, (int) screenEnY - 24, null);
+            } else {
+                g2d.setColor(Color.RED);
+                g2d.fillOval((int) screenEnX - en.getRadio(), (int) screenEnY - en.getRadio(), en.getRadio() * 2, en.getRadio() * 2);
+            }
+
+            int vidaMax = (en instanceof EnemigoTanque) ? 150 : 30;
+            dibujarBarraVida(g2d, (int) screenEnX, (int) screenEnY - en.getRadio() - 15, en.getVida(), vidaMax, 30, 5);
+        }
+
+        // 2. DIBUJAR PROYECTILES
         g2d.setColor(Color.YELLOW);
         for (Proyectil p : proyectiles) {
-            int pX = (int) p.getX();
-            int pY = (int) p.getY();
-            int pRadio = p.getRadio();
-            g2d.fillOval(pX - pRadio, pY - pRadio, pRadio * 2, pRadio * 2);
+            double screenBulletX = p.getX() + cameraX;
+            double screenBulletY = p.getY() + cameraY;
+            g2d.fillOval((int) screenBulletX - p.getRadio(), (int) screenBulletY - p.getRadio(), p.getRadio() * 2, p.getRadio() * 2);
         }
 
-        // 3. DIBUJAR ENEMIGOS Y SUS BARRAS DE VIDA
-        for (Enemigo e : enemigos) {
-            int eX = (int) e.getX();
-            int eY = (int) e.getY();
-            int eRadio = e.getRadio();
-
-            // Diferenciación de colores entre tipos de enemigo
-            if (e instanceof EnemigoTanque) {
-                g2d.setColor(new Color(178, 34, 34)); // Rojo oscuro
-            } else {
-                g2d.setColor(Color.RED); // Rojo encendido
-            }
-
-            g2d.fillOval(eX - eRadio, eY - eRadio, eRadio * 2, eRadio * 2);
-
-            // Barra de vida según el tipo de enemigo
-            int vidaMax = (e instanceof EnemigoTanque) ? 150 : 30;
-            dibujarBarraVida(g2d, eX, eY - eRadio - 12, e.getVida(), vidaMax, 30, 5);
+        // 3. DIBUJAR JUGADOR (Escudo, Base rotada y Cañón rotado)
+        if (jugador.isEscudoActivo()) {
+            int jRadio = jugador.getRadio();
+            g2d.setColor(new Color(0, 191, 255, 100));
+            g2d.fillOval((int) screenTankX - jRadio - 10, (int) screenTankY - jRadio - 10, (jRadio + 10) * 2, (jRadio + 10) * 2);
+            g2d.setColor(Color.CYAN);
+            g2d.drawOval((int) screenTankX - jRadio - 10, (int) screenTankY - jRadio - 10, (jRadio + 10) * 2, (jRadio + 10) * 2);
         }
 
-        // 4. DIBUJAR PUNTUACIÓN (HUD en pantalla)
+        if (baseFrames[currentFrame] != null) {
+            AffineTransform oldAT = g2d.getTransform();
+            g2d.rotate(jugador.getAnguloCuerpo() - Math.PI / 2, screenTankX, screenTankY);
+            g2d.drawImage(baseFrames[currentFrame], (int) (screenTankX - 159 / 2.0), (int) (screenTankY - 176 / 2.0), null);
+            g2d.setTransform(oldAT);
+        }
+
+        if (cannonImage != null) {
+            AffineTransform oldAT = g2d.getTransform();
+            double mouseX = getMousePosition() != null ? getMousePosition().getX() : screenTankX;
+            double mouseY = getMousePosition() != null ? getMousePosition().getY() : screenTankY;
+            double cannonAngle = Math.atan2(mouseY - screenTankY, mouseX - screenTankX) + (3 * Math.PI) / 2;
+
+            g2d.rotate(cannonAngle, screenTankX, screenTankY);
+            g2d.drawImage(cannonImage, (int) (screenTankX - cannonImage.getWidth() / 2.0), (int) (screenTankY - cannonImage.getHeight() / 2.0), null);
+            g2d.setTransform(oldAT);
+        }
+
+        dibujarBarraVida(g2d, (int) screenTankX, (int) screenTankY - 35, jugador.getVida(), 100, 40, 6);
+
+        // 4. HUD (Puntuación y Récord)
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Arial", Font.BOLD, 16));
         g2d.drawString("SCORE: " + puntuacion, 20, 30);
+        g2d.setColor(Color.YELLOW);
+        g2d.drawString("HIGH SCORE: " + record, 20, 55);
     }
+
     private void dibujarBarraVida(Graphics2D g2d, int centerX, int topY, int vidaActual, int vidaMax, int ancho, int alto) {
         int x = centerX - (ancho / 2);
         int porcentaje = Math.max(0, (vidaActual * ancho) / vidaMax);
 
-        // Fondo rojo (vida faltante)
         g2d.setColor(Color.RED);
         g2d.fillRect(x, topY, ancho, alto);
-
-        // Relleno verde (vida actual)
         g2d.setColor(Color.GREEN);
         g2d.fillRect(x, topY, porcentaje, alto);
-
-        // Borde fino
         g2d.setColor(Color.DARK_GRAY);
         g2d.drawRect(x, topY, ancho, alto);
     }
-    
+
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
