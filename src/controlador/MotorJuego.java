@@ -54,7 +54,7 @@ public class MotorJuego implements Runnable {
             public void mousePressed(java.awt.event.MouseEvent e) {
                 Proyectil nuevaBala = jugadorActual.disparar();
                 if (nuevaBala != null) {
-                    listaProyectiles.add(nuevaBala);
+                    agregarProyectil(nuevaBala);
                 }
             }
         });
@@ -80,6 +80,7 @@ public class MotorJuego implements Runnable {
                     case KeyEvent.VK_S -> jugadorActual.setDown(true);
                     case KeyEvent.VK_A -> jugadorActual.setLeft(true);
                     case KeyEvent.VK_D -> jugadorActual.setRight(true);
+                    case KeyEvent.VK_E -> jugadorActual.activarEscudo();
                 }
             }
             @Override
@@ -127,8 +128,12 @@ public class MotorJuego implements Runnable {
     }
 
     private void actualizarProyectiles() {
-        for (Proyectil p : listaProyectiles) {
-            if (p.isActivo()) p.actualizar();
+        synchronized (listaProyectiles) {
+            for (Proyectil p : listaProyectiles) {
+                if (p.isActivo()) {
+                    p.actualizar();
+                }
+            }
         }
     }
 
@@ -141,15 +146,37 @@ public class MotorJuego implements Runnable {
     }
 
     private void generarEnemigos() {
-        // ANTES: contadorFrames % 60 == 0 (cada 1 segundo). 
-        // AHORA: contadorFrames % 180 == 0 (cada 3 segundos) para que no aparezcan tan rápido.
         if (contadorFrames % 180 == 0) {
-            double spawnX = jugadorActual.getX() + (random.nextBoolean() ? 800 : -800);
-            double spawnY = jugadorActual.getY() + (random.nextBoolean() ? 800 : -800);
-            
+
+            double spawnX, spawnY;
+            int lado = random.nextInt(4);
+
+            switch (lado) {
+                case 0: // Arriba
+                    spawnX = jugadorActual.getX() + random.nextInt(1001) - 500;
+                    spawnY = jugadorActual.getY() - 800;
+                    break;
+
+                case 1: // Abajo
+                    spawnX = jugadorActual.getX() + random.nextInt(1001) - 500;
+                    spawnY = jugadorActual.getY() + 800;
+                    break;
+
+                case 2: // Izquierda
+                    spawnX = jugadorActual.getX() - 800;
+                    spawnY = jugadorActual.getY() + random.nextInt(1001) - 500;
+                    break;
+
+                default: // Derecha
+                    spawnX = jugadorActual.getX() + 800;
+                    spawnY = jugadorActual.getY() + random.nextInt(1001) - 500;
+                    break;
+            }
+
+            // Evitar que aparezcan fuera del mapa
             spawnX = Math.max(100, Math.min(MAP_WIDTH - 100, spawnX));
             spawnY = Math.max(100, Math.min(MAP_HEIGHT - 100, spawnY));
-            
+
             if (random.nextInt(100) < 30) {
                 listaEnemigos.add(new EnemigoTanque(spawnX, spawnY));
             } else {
@@ -193,10 +220,21 @@ public class MotorJuego implements Runnable {
     }
 
     private void limpiarEntidadesInactivas() {
-        listaProyectiles.removeIf(p -> !p.isActivo());
-        listaEnemigos.removeIf(e -> !e.isActivo());
+        synchronized (listaProyectiles) {
+            listaProyectiles.removeIf(p -> !p.isActivo());
+        }
+
+        synchronized (listaEnemigos) {
+            listaEnemigos.removeIf(e -> !e.isActivo());
+        }
     }
     
     public Jugador getJugadorActual() { return jugadorActual; }
-    public void agregarProyectil(Proyectil p) { if (p != null) listaProyectiles.add(p); }
+    public void agregarProyectil(Proyectil p) {
+        if (p != null) {
+            synchronized (listaProyectiles) {
+                listaProyectiles.add(p);
+            }
+        }
+    }
 }

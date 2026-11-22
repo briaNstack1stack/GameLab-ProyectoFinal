@@ -18,12 +18,15 @@ public class Jugador extends Entidad {
     private final double MAP_WIDTH = 4000;
     private final double MAP_HEIGHT = 3000;
 
+    private final double SCREEN_WIDTH = 800;
+    private final double SCREEN_HEIGHT = 600;;
+
     public Jugador(String nombre, double x, double y) {
         super(x, y, 20, 0, true);
         this.nombre = nombre;
         this.vida = 100;
         this.anguloApuntado = 0.0;
-        this.anguloCuerpo = 0.0;
+        this.anguloCuerpo = -Math.PI / 2;
         
         this.cooldownDisparo = 0;
         this.tiempoEscudo = 0;
@@ -31,10 +34,12 @@ public class Jugador extends Entidad {
         this.cooldownBomba = 0;
     }
 
+
     @Override
     public void actualizar() {
         double dx = 0;
         double dy = 0;
+
         if (up) dy -= 1;
         if (down) dy += 1;
         if (left) dx -= 1;
@@ -44,24 +49,34 @@ public class Jugador extends Entidad {
             double length = Math.hypot(dx, dy);
             dx /= length;
             dy /= length;
-            
+
             this.x += dx * velocidadMovimiento;
             this.y += dy * velocidadMovimiento;
-            
+
             this.anguloCuerpo = Math.atan2(dy, dx);
         }
 
-        // Limitar al nuevo mapa grande de 4000x3000
-        this.x = Math.max(50, Math.min(MAP_WIDTH - 50, this.x));
-        this.y = Math.max(50, Math.min(MAP_HEIGHT - 50, this.y));
+        // Limitar el movimiento mapa
+        this.x = Math.max(90, Math.min(MAP_WIDTH + 130, this.x));
+        this.y = Math.max(90, Math.min(MAP_HEIGHT - 20, this.y));
 
-        if (cooldownDisparo > 0) cooldownDisparo--;
+        if (cooldownDisparo > 0) {
+            cooldownDisparo--;
+        }
+
         if (tiempoEscudo > 0) {
             tiempoEscudo--;
-            if (tiempoEscudo == 0) escudoActivo = false;
+
+            if (tiempoEscudo == 0) {
+                escudoActivo = false;
+            }
         }
-        if (cooldownBomba > 0) cooldownBomba--;
+
+        if (cooldownBomba > 0) {
+            cooldownBomba--;
+        }
     }
+
     
     // Método para saber si el jugador está presionando alguna tecla de movimiento
     public boolean isMovimiento() {
@@ -86,7 +101,14 @@ public class Jugador extends Entidad {
         if (escudoActivo) return;
         this.vida = Math.max(0, this.vida - cantidad);
     }
-
+    
+    public void activarEscudo() {
+        if (!escudoActivo) {
+            escudoActivo = true;
+            tiempoEscudo = 180;
+        }
+    }
+    
     public void setUp(boolean up) { this.up = up; }
     public void setDown(boolean down) { this.down = down; }
     public void setLeft(boolean left) { this.left = left; }
