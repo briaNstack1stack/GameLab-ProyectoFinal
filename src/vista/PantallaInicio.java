@@ -86,13 +86,11 @@ public class PantallaInicio extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void btnExitActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnExitActionPerformed
-        System.exit(0);
+
     }//GEN-LAST:event_btnExitActionPerformed
 
     private void btnStartActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnStartActionPerformed
-        vista.PantallaJuego ventanaJuego = new vista.PantallaJuego();
-        ventanaJuego.setVisible(true);
-        this.dispose(); // Cierra el menú para que no quede estorbando de fondo
+
     }//GEN-LAST:event_btnStartActionPerformed
 
     /**
