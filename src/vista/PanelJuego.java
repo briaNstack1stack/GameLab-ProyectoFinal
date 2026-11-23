@@ -24,7 +24,11 @@ public class PanelJuego extends javax.swing.JPanel {
     private ArrayList<Proyectil> proyectiles = new ArrayList<>();
     private int puntuacion = 0;
     private int record = 0;
-
+    private int nivel = 1;
+    private int totalNiveles = 3;
+    private int segundosRestantes = 0;
+    private String mensajeCentral = null;
+    
     // Sprites y recursos gráficos
     private BufferedImage[] baseFrames = new BufferedImage[4];
     private BufferedImage cannonImage;
@@ -145,7 +149,14 @@ public class PanelJuego extends javax.swing.JPanel {
 
         this.repaint();
     }
-
+    
+        public void actualizarNivel(int nivel, int totalNiveles, int segundosRestantes, String mensajeCentral) {
+        this.nivel = nivel;
+        this.totalNiveles = totalNiveles;
+        this.segundosRestantes = segundosRestantes;
+        this.mensajeCentral = mensajeCentral;
+    }
+    
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -244,7 +255,7 @@ public class PanelJuego extends javax.swing.JPanel {
                 }
             }
 
-            int vidaMax = (en instanceof EnemigoTanque) ? 150 : 30;
+            int vidaMax = en.getVidaMaxima();
 
             dibujarBarraVida(
                 g2d,
@@ -405,6 +416,30 @@ public class PanelJuego extends javax.swing.JPanel {
 
         g2d.setColor(Color.YELLOW);
         g2d.drawString("HIGH SCORE: " + record, 20, 55);
+        
+        int minutos = segundosRestantes / 60;
+        int segundos = segundosRestantes % 60;
+        String textoNivel = "NIVEL " + nivel + " / " + totalNiveles;
+        String textoTiempo = String.format("TIEMPO: %02d:%02d", minutos, segundos);
+
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Arial", Font.BOLD, 16));
+        java.awt.FontMetrics fmHud = g2d.getFontMetrics();
+        g2d.drawString(textoNivel, getWidth() - fmHud.stringWidth(textoNivel) - 20, 30);
+        g2d.drawString(textoTiempo, getWidth() - fmHud.stringWidth(textoTiempo) - 20, 55);
+
+        // MENSAJE CENTRAL (cartel de nivel, victoria o game over)
+        if (mensajeCentral != null) {
+            g2d.setFont(new Font("Arial", Font.BOLD, 48));
+            java.awt.FontMetrics fm = g2d.getFontMetrics();
+            int xMsg = (getWidth() - fm.stringWidth(mensajeCentral)) / 2;
+            int yMsg = getHeight() / 2 - 80;
+
+            g2d.setColor(Color.BLACK);
+            g2d.drawString(mensajeCentral, xMsg + 3, yMsg + 3); // sombra
+            g2d.setColor(Color.WHITE);
+            g2d.drawString(mensajeCentral, xMsg, yMsg);
+        }
     }
 
     private void dibujarBarraVida(

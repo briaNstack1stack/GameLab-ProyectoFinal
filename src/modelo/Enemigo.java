@@ -2,14 +2,16 @@ package modelo;
 
 public class Enemigo extends Entidad {
     protected int vida;
+    protected int vidaMaxima; // vida con la que nacio (para dibujar bien la barra de vida)
     protected int danio;
     protected int recompensaPuntos;
-    protected int frameAnimacion = 0; // <--- Frame interno del enemigo
+    protected int frameAnimacion = 0; //Frame interno del enemigo
     protected int contadorAnimacion = 0;
 
     public Enemigo(double x, double y, int radio, double velocidad, int vida, int danio, int recompensaPuntos) {
         super(x, y, radio, velocidad, true);
         this.vida = vida;
+        this.vidaMaxima = vida;
         this.danio = danio;
         this.recompensaPuntos = recompensaPuntos;
     }
@@ -28,7 +30,7 @@ public class Enemigo extends Entidad {
         actualizarFrames();
     }
 
-    // Lógica para que el sprite del enemigo rote/anime automáticamente
+    // Logica para que el sprite del enemigo rote/anime automaticamente
     private void actualizarFrames() {
         contadorAnimacion++;
         if (contadorAnimacion % 10 == 0) { // Cambia de frame cada 10 ticks
@@ -48,6 +50,18 @@ public class Enemigo extends Entidad {
         }
     }
 
+    /*
+     * Sube la dificultad del enemigo según el nivel.
+     * Se llama una sola vez, justo después de crearlo.
+     */
+    public void aplicarDificultad(double multVelocidad, double multDanio, double multVida) {
+        setVelocidad(this.velocidad * multVelocidad);
+        this.danio = Math.max(1, (int) Math.round(this.danio * multDanio));
+        this.vida = Math.max(1, (int) Math.round(this.vida * multVida));
+        this.vidaMaxima = this.vida;
+    }
+
+    public int getVidaMaxima() { return vidaMaxima; }
     public int getVida() { return vida; }
     public void setVida(int vida) { 
         this.vida = Math.max(0, vida);
