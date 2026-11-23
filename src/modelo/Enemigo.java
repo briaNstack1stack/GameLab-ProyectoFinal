@@ -1,15 +1,19 @@
 package modelo;
 
 public class Enemigo extends Entidad {
+
     protected int vida;
-    protected int vidaMaxima; // vida con la que nacio (para dibujar bien la barra de vida)
+    protected int vidaMaxima;
     protected int danio;
     protected int recompensaPuntos;
-    protected int frameAnimacion = 0; //Frame interno del enemigo
+    protected int frameAnimacion = 0;
     protected int contadorAnimacion = 0;
 
-    public Enemigo(double x, double y, int radio, double velocidad, int vida, int danio, int recompensaPuntos) {
+    public Enemigo(double x, double y, int radio, double velocidad,
+                   int vida, int danio, int recompensaPuntos) {
+
         super(x, y, radio, velocidad, true);
+
         this.vida = vida;
         this.vidaMaxima = vida;
         this.danio = danio;
@@ -22,18 +26,21 @@ public class Enemigo extends Entidad {
         actualizarFrames();
     }
 
-    // Sobrecarga para cuando persigue al jugador
+    // Actualizar movimiento persiguiendo al jugador
     public void actualizar(double jugadorX, double jugadorY) {
         double angulo = Math.atan2(jugadorY - this.y, jugadorX - this.x);
+
         this.x += this.velocidad * Math.cos(angulo);
         this.y += this.velocidad * Math.sin(angulo);
+
         actualizarFrames();
     }
 
-    // Logica para que el sprite del enemigo rote/anime automaticamente
+    // Actualizar animación del enemigo
     private void actualizarFrames() {
         contadorAnimacion++;
-        if (contadorAnimacion % 10 == 0) { // Cambia de frame cada 10 ticks
+
+        if (contadorAnimacion % 10 == 0) {
             frameAnimacion = (frameAnimacion + 1) % 4;
         }
     }
@@ -44,16 +51,14 @@ public class Enemigo extends Entidad {
 
     public void recibirDanio(int cantidad) {
         this.vida -= cantidad;
+
         if (this.vida <= 0) {
             this.vida = 0;
             this.activo = false;
         }
     }
 
-    /*
-     * Sube la dificultad del enemigo según el nivel.
-     * Se llama una sola vez, justo después de crearlo.
-     */
+    // Aumentar las características del enemigo según el nivel
     public void aplicarDificultad(double multVelocidad, double multDanio, double multVida) {
         setVelocidad(this.velocidad * multVelocidad);
         this.danio = Math.max(1, (int) Math.round(this.danio * multDanio));
@@ -61,14 +66,51 @@ public class Enemigo extends Entidad {
         this.vidaMaxima = this.vida;
     }
 
-    public int getVidaMaxima() { return vidaMaxima; }
-    public int getVida() { return vida; }
-    public void setVida(int vida) { 
-        this.vida = Math.max(0, vida);
-        if (this.vida == 0) this.activo = false;
+    public int getVidaMaxima() {
+        return vidaMaxima;
     }
-    public int getDanio() { return danio; }
-    public void setDanio(int nuevoDanio) { this.danio = Math.max(0, nuevoDanio); }
-    public int getRecompensaPuntos() { return recompensaPuntos; }
-    public void setRecompensaPuntos(int nuevosPuntos) { this.recompensaPuntos = Math.max(0, nuevosPuntos); }
+
+    public int getVida() {
+        return vida;
+    }
+
+    public void setVida(int vida) {
+        this.vida = Math.max(0, vida);
+
+        if (this.vida == 0) {
+            this.activo = false;
+        }
+    }
+
+    public int getDanio() {
+        return danio;
+    }
+
+    public void setDanio(int nuevoDanio) {
+        this.danio = Math.max(0, nuevoDanio);
+    }
+
+    public int getRecompensaPuntos() {
+        return recompensaPuntos;
+    }
+
+    public void setRecompensaPuntos(int nuevosPuntos) {
+        this.recompensaPuntos = Math.max(0, nuevosPuntos);
+    }
+
+    public int getContadorAnimacion() {
+        return contadorAnimacion;
+    }
+
+    public void setContadorAnimacion(int contador) {
+        this.contadorAnimacion = Math.max(0, contador);
+    }
+
+    public void setVidaMaxima(int vidaMaxima) {
+        this.vidaMaxima = Math.max(1, vidaMaxima);
+    }
+
+    public void setFrameAnimacion(int frame) {
+        this.frameAnimacion = Math.max(0, frame) % 4;
+    }
 }

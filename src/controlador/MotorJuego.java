@@ -1,5 +1,6 @@
 package controlador;
 
+import modelo.DatosPartida;
 import modelo.Entidad;
 import modelo.Jugador;
 import modelo.Enemigo;
@@ -23,10 +24,11 @@ public class MotorJuego implements Runnable {
     private boolean juegoEnCurso;
     private int puntuacion;
     private int record;
+    private boolean partidaFinalizada = false;
     private int anchoPantalla;
     private int altoPantalla;
     
-    // --- MAPA AMPLIADO ---
+    
     private final int MAP_WIDTH = 4000;
     private final int MAP_HEIGHT = 3000;
     
@@ -49,24 +51,30 @@ public class MotorJuego implements Runnable {
     private boolean victoria;
     private String mensajeCentral;
 
-    public MotorJuego(PanelJuego panelJuego, int anchoPantalla, int altoPantalla) {
+    public MotorJuego(PanelJuego panelJuego, int anchoPantalla, int altoPantalla, boolean continuar) {
         this.panelJuego = panelJuego;
         this.anchoPantalla = anchoPantalla;
         this.altoPantalla = altoPantalla;
         
         this.listaEnemigos = new ArrayList<>();
         this.listaProyectiles = new ArrayList<>();
-        this.record = GestorPersistencia.cargarRecord();
+        this.record = PersistenciaJuego.cargarRecord();
         
-        // El jugador nace en el centro del nuevo mapa grande
-        this.jugadorActual = new Jugador("Piloto 1", MAP_WIDTH / 2.0, MAP_HEIGHT / 2.0);
-        
-        this.juegoEnCurso = true;
-        this.puntuacion = 0;
-        this.indiceNivel = 0;
-        this.framesParaSpawn = 0;
-        this.victoria = false;
         this.random = new Random();
+
+        if (continuar) {
+
+            DatosPartida datos = PersistenciaJuego.cargarPartida();
+
+            if (datos != null) {
+                restaurarPartida(datos);
+            } else {
+                iniciarPartidaNueva();
+            }
+
+        } else {
+            iniciarPartidaNueva();
+        }
 
         this.panelJuego.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
@@ -113,43 +121,93 @@ public class MotorJuego implements Runnable {
             }
         });
     }
+    
+    private void iniciarPartidaNueva() {
 
+        this.listaEnemigos.clear();
+        this.listaProyectiles.clear();
+
+        this.jugadorActual = new Jugador(
+                "Piloto 1",
+                MAP_WIDTH / 2.0,
+                MAP_HEIGHT / 2.0
+        );
+
+        this.juegoEnCurso = true;
+        this.puntuacion = 0;
+        this.indiceNivel = 0;
+        this.inicioNivelMs = System.currentTimeMillis();
+        this.framesParaSpawn = 0;
+        this.segundosRestantes = niveles[0].getDuracionSegundos();
+
+        this.victoria = false;
+        this.mensajeCentral = null;
+        this.partidaFinalizada = false;
+    }
+    
     @Override
     public void run() {
-        inicioNivelMs = System.currentTimeMillis();
 
         while (juegoEnCurso) {
+
             jugadorActual.actualizar();
+
             actualizarProyectiles();
             actualizarEnemigos();
-            
-            actualizarNivel();
+
+            // Generar enemigos
             generarEnemigos();
+
+            // Revisar colisiones
             detectarColisiones();
             limpiarEntidadesInactivas();
-            
+
+            // Revisar si el jugador perdió
             if (jugadorActual.getVida() <= 0) {
                 juegoEnCurso = false;
                 victoria = false;
                 mensajeCentral = "GAME OVER";
-                if (puntuacion > record) {
-                    record = puntuacion;
-                    GestorPersistencia.guardarRecord(record);
-                }
             }
-            
+
+            // Actualizar el nivel y el tiempo
+            if (juegoEnCurso) {
+                actualizarNivel();
+            }
+
+            // Registrar el resultado al terminar la partida
+            if (!juegoEnCurso) {
+                finalizarPartida();
+            }
+
+            // Actualizar pantalla
             if (panelJuego != null) {
-                panelJuego.actualizarNivel(niveles[indiceNivel].getNumero(), niveles.length, segundosRestantes, mensajeCentral);
-                panelJuego.actualizarDatos(jugadorActual, listaEnemigos, listaProyectiles, puntuacion, record);
+
+                panelJuego.actualizarNivel(
+                    niveles[indiceNivel].getNumero(),
+                    niveles.length,
+                    segundosRestantes,
+                    mensajeCentral
+                );
+
+                panelJuego.actualizarDatos(
+                    jugadorActual,
+                    listaEnemigos,
+                    listaProyectiles,
+                    puntuacion,
+                    record
+                );
             }
-            
+
+            // Controlar velocidad del ciclo
             try {
                 Thread.sleep(16);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                break;
             }
         }
     }
+
 
     private void actualizarProyectiles() {
         synchronized (listaProyectiles) {
@@ -267,10 +325,6 @@ public class MotorJuego implements Runnable {
                     p.setActivo(false);
                     if (e.getVida() <= 0) {
                         puntuacion += e.getRecompensaPuntos();
-                        if (puntuacion > record) {
-                            record = puntuacion;
-                            GestorPersistencia.guardarRecord(record);
-                        }
                     }
                 }
             }
@@ -309,6 +363,271 @@ public class MotorJuego implements Runnable {
             synchronized (listaProyectiles) {
                 listaProyectiles.add(p);
             }
+        }
+    }
+    
+    
+
+    private void finalizarPartida() {
+
+        if (partidaFinalizada) {
+            return;
+        }
+
+        partidaFinalizada = true;
+        PersistenciaJuego.eliminarPartidaGuardada();
+
+        // Solicitar iniciales al jugador
+        String nombre = pedirIniciales();
+
+        // Si cancela, guardar igualmente la partida
+        if (nombre == null) {
+            nombre = "CPU";
+        }
+
+        // Guardar TODAS las partidas
+        PersistenciaJuego.guardarRecord(nombre, puntuacion);
+
+        // Actualizar el récord máximo en memoria
+        if (puntuacion > record) {
+            record = puntuacion;
+        }
+    }
+
+    
+    
+    private String pedirIniciales() {
+
+        java.util.concurrent.atomic.AtomicReference<String> resultado =
+            new java.util.concurrent.atomic.AtomicReference<>(null);
+
+        try {
+
+            javax.swing.SwingUtilities.invokeAndWait(() -> {
+
+                while (true) {
+
+                    String nombre = javax.swing.JOptionPane.showInputDialog(
+                        panelJuego,
+                        "¡NUEVO RECORD!\n\n"
+                        + "Ingresa tus 3 iniciales:",
+                        "NUEVO RECORD",
+                        javax.swing.JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    if (nombre == null) {
+                        break;
+                    }
+
+                    nombre = nombre.trim().toUpperCase();
+
+                    if (nombre.matches("[A-Z]{3}")) {
+                        resultado.set(nombre);
+                        break;
+                    }
+
+                    javax.swing.JOptionPane.showMessageDialog(
+                        panelJuego,
+                        "Debes ingresar exactamente 3 letras.",
+                        "Nombre inválido",
+                        javax.swing.JOptionPane.WARNING_MESSAGE
+                    );
+                }
+            });
+
+        } catch (Exception e) {
+            System.err.println("Error al solicitar iniciales: " + e.getMessage());
+        }
+
+        return resultado.get();
+    }
+    
+    private void guardarEstadoPartida() {
+
+        DatosPartida datos = new DatosPartida();
+
+        // Datos del jugador
+        datos.jugadorX = jugadorActual.getX();
+        datos.jugadorY = jugadorActual.getY();
+        datos.vidaJugador = jugadorActual.getVida();
+        datos.anguloApuntado = jugadorActual.getAnguloApuntado();
+        datos.anguloCuerpo = jugadorActual.getAnguloCuerpo();
+        datos.tiempoEscudo = jugadorActual.getTiempoEscudo();
+        datos.cooldownDisparo = jugadorActual.getCooldownDisparo();
+        datos.radioJugador = jugadorActual.getRadioJugador();
+        datos.velocidadJugador = jugadorActual.getVelocidadMovimiento();
+        datos.nombreJugador = jugadorActual.getNombre();
+
+        // Datos generales de la partida
+        datos.puntuacion = puntuacion;
+        datos.indiceNivel = indiceNivel;
+        datos.segundosRestantes = segundosRestantes;
+        datos.framesParaSpawn = framesParaSpawn;
+
+        long transcurrido = System.currentTimeMillis() - inicioNivelMs;
+        long duracion = niveles[indiceNivel].getDuracionSegundos() * 1000L;
+
+        datos.tiempoNivelRestanteMs = Math.max(0, duracion - transcurrido);
+
+        // Guardar enemigos
+        synchronized (listaEnemigos) {
+            for (Enemigo e : listaEnemigos) {
+
+                String tipo = (e instanceof EnemigoTanque) ? "T" : "V";
+
+                String enemigo = tipo + ","
+                        + e.getX() + ","
+                        + e.getY() + ","
+                        + e.getRadio() + ","
+                        + e.getVelocidad() + ","
+                        + e.getVida() + ","
+                        + e.getVidaMaxima() + ","
+                        + e.getDanio() + ","
+                        + e.getRecompensaPuntos() + ","
+                        + e.isActivo() + ","
+                        + e.getFrameAnimacion() + ","
+                        + e.getContadorAnimacion();
+
+                datos.enemigos.add(enemigo);
+            }
+        }
+
+        // Guardar proyectiles
+        synchronized (listaProyectiles) {
+            for (Proyectil p : listaProyectiles) {
+
+                String proyectil = p.getX() + ","
+                        + p.getY() + ","
+                        + p.getRadio() + ","
+                        + p.getVelocidad() + ","
+                        + p.getAnguloViaje() + ","
+                        + p.getDanio() + ","
+                        + p.isActivo();
+
+                datos.proyectiles.add(proyectil);
+            }
+        }
+
+        PersistenciaJuego.guardarPartida(datos);
+    }
+    
+    private void cargarEntidadesGuardadas(DatosPartida datos) {
+
+        listaEnemigos.clear();
+        listaProyectiles.clear();
+
+        // Recuperar enemigos
+        for (String registro : datos.enemigos) {
+
+            String[] partes = registro.split(",");
+
+            String tipo = partes[0];
+
+            double x = Double.parseDouble(partes[1]);
+            double y = Double.parseDouble(partes[2]);
+
+            Enemigo enemigo;
+
+            if (tipo.equals("T")) {
+                enemigo = new EnemigoTanque(x, y);
+            } else {
+                enemigo = new EnemigoVeloz(x, y);
+            }
+
+            enemigo.setRadio(Integer.parseInt(partes[3]));
+            enemigo.setVelocidad(Double.parseDouble(partes[4]));
+            enemigo.setVida(Integer.parseInt(partes[5]));
+            enemigo.setVidaMaxima(Integer.parseInt(partes[6]));
+            enemigo.setDanio(Integer.parseInt(partes[7]));
+            enemigo.setRecompensaPuntos(Integer.parseInt(partes[8]));
+            enemigo.setActivo(Boolean.parseBoolean(partes[9]));
+            enemigo.setFrameAnimacion(Integer.parseInt(partes[10]));
+            enemigo.setContadorAnimacion(Integer.parseInt(partes[11]));
+
+            listaEnemigos.add(enemigo);
+        }
+
+        // Recuperar proyectiles
+        for (String registro : datos.proyectiles) {
+
+            String[] partes = registro.split(",");
+
+            double x = Double.parseDouble(partes[0]);
+            double y = Double.parseDouble(partes[1]);
+            int radio = Integer.parseInt(partes[2]);
+            double velocidad = Double.parseDouble(partes[3]);
+            double angulo = Double.parseDouble(partes[4]);
+            int danio = Integer.parseInt(partes[5]);
+            boolean activo = Boolean.parseBoolean(partes[6]);
+
+            Proyectil proyectil = new Proyectil(x, y, angulo);
+
+            proyectil.setRadio(radio);
+            proyectil.setVelocidad(velocidad);
+            proyectil.setDanio(danio);
+            proyectil.setActivo(activo);
+
+            listaProyectiles.add(proyectil);
+        }
+    }
+    
+    private void restaurarPartida(DatosPartida datos) {
+
+        // Recuperar jugador
+        jugadorActual = new Jugador(
+                datos.nombreJugador,
+                datos.jugadorX,
+                datos.jugadorY
+        );
+
+        jugadorActual.setVida(datos.vidaJugador);
+        jugadorActual.setAnguloApuntado(datos.anguloApuntado);
+        jugadorActual.setAnguloCuerpo(datos.anguloCuerpo);
+        jugadorActual.setTiempoEscudo(datos.tiempoEscudo);
+        jugadorActual.setCooldownDisparo(datos.cooldownDisparo);
+        jugadorActual.setRadio(datos.radioJugador);
+        jugadorActual.setVelocidadMovimiento(datos.velocidadJugador);
+
+        // Recuperar datos generales
+        puntuacion = datos.puntuacion;
+
+        indiceNivel = datos.indiceNivel;
+
+        // Evitar índices inválidos
+        if (indiceNivel < 0 || indiceNivel >= niveles.length) {
+            indiceNivel = 0;
+        }
+
+        segundosRestantes = datos.segundosRestantes;
+        framesParaSpawn = datos.framesParaSpawn;
+
+        // Recuperar tiempo restante del nivel
+        long duracionNivel = niveles[indiceNivel].getDuracionSegundos() * 1000L;
+
+        long tiempoTranscurrido = duracionNivel - datos.tiempoNivelRestanteMs;
+
+        inicioNivelMs = System.currentTimeMillis() - tiempoTranscurrido;
+
+        // Recuperar enemigos y proyectiles
+        cargarEntidadesGuardadas(datos);
+
+        // Preparar partida
+        victoria = false;
+        mensajeCentral = null;
+        partidaFinalizada = false;
+        juegoEnCurso = true;
+    }
+    
+    public void salirAlMenu() {
+
+        if (juegoEnCurso && !partidaFinalizada) {
+
+            // Guardar el estado actual antes de salir
+            guardarEstadoPartida();
+
+            // Evitar que se registre como una partida terminada
+            partidaFinalizada = true;
+            juegoEnCurso = false;
         }
     }
 }

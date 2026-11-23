@@ -1,6 +1,7 @@
 package modelo;
 
 public abstract class Entidad {
+
     protected double x;
     protected double y;
     protected int radio;
@@ -12,7 +13,7 @@ public abstract class Entidad {
         this.y = y;
         this.radio = radio;
         this.velocidad = velocidad;
-        this.activo = true;
+        this.activo = activo;
     }
 
     public double getX() {
@@ -20,16 +21,11 @@ public abstract class Entidad {
     }
 
     public void setX(double x) {
-        /*-Double.isNaN(x) Significa "not a number" se genera cuando aparace una
-        operacion matematicamente infita como (0.0 / 0.0)
-        -Double.isInfinite(x) Verifica si el numero crecio hasta volverse infinito,
-        basicamente es cuando se divide un numero por 0 */
-        if(Double.isNaN(x) || Double.isInfinite(x)){
+        if (Double.isNaN(x) || Double.isInfinite(x)) {
             this.x = 0;
-        }else{
+        } else {
             this.x = x;
         }
-        
     }
 
     public double getY() {
@@ -38,7 +34,7 @@ public abstract class Entidad {
 
     public void setY(double y) {
         if (Double.isNaN(y) || Double.isInfinite(y)) {
-            this.y = 0; 
+            this.y = 0;
         } else {
             this.y = y;
         }
@@ -49,12 +45,11 @@ public abstract class Entidad {
     }
 
     public void setRadio(int radio) {
-        if(radio <= 0){
+        if (radio <= 0) {
             this.radio = 1;
-        } else{
+        } else {
             this.radio = radio;
         }
-        
     }
 
     public double getVelocidad() {
@@ -62,12 +57,11 @@ public abstract class Entidad {
     }
 
     public void setVelocidad(double velocidad) {
-        if(velocidad < 0){
+        if (velocidad < 0) {
             this.velocidad = 0;
-        } else{
+        } else {
             this.velocidad = velocidad;
         }
-        
     }
 
     public boolean isActivo() {
@@ -77,9 +71,6 @@ public abstract class Entidad {
     public void setActivo(boolean activo) {
         this.activo = activo;
     }
+
     public abstract void actualizar();
-    
-    public boolean colisionesCon(Entidad otra){
-        return false;
-    }
 }

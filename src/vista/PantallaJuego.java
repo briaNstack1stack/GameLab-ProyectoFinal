@@ -24,7 +24,6 @@ public class PantallaJuego extends javax.swing.JFrame {
         return panelJuego;
     }
 
-  
     @SuppressWarnings("unchecked")
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {

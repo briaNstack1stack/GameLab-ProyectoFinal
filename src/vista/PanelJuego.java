@@ -1,6 +1,5 @@
 package vista;
 
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -11,7 +10,6 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.ArrayList;
 import javax.imageio.ImageIO;
-import javax.swing.JPanel;
 
 import modelo.Enemigo;
 import modelo.EnemigoTanque;
@@ -150,7 +148,12 @@ public class PanelJuego extends javax.swing.JPanel {
         this.repaint();
     }
     
-        public void actualizarNivel(int nivel, int totalNiveles, int segundosRestantes, String mensajeCentral) {
+    public void actualizarNivel(
+        int nivel,
+        int totalNiveles,
+        int segundosRestantes,
+        String mensajeCentral
+    ) {
         this.nivel = nivel;
         this.totalNiveles = totalNiveles;
         this.segundosRestantes = segundosRestantes;
@@ -416,6 +419,11 @@ public class PanelJuego extends javax.swing.JPanel {
 
         g2d.setColor(Color.YELLOW);
         g2d.drawString("HIGH SCORE: " + record, 20, 55);
+        
+        // Instrucción para activar el escudo
+        g2d.setColor(new Color(180, 120, 255));
+        g2d.setFont(new Font("Arial", Font.BOLD, 14));
+        g2d.drawString("[E] ACTIVAR ESCUDO", 20, 85);
         
         int minutos = segundosRestantes / 60;
         int segundos = segundosRestantes % 60;
